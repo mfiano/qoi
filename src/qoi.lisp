@@ -48,12 +48,10 @@
             (read-uint 1))))
 
 (defun read-rgb ()
-  (values (read-uint 3)
-          1))
+  (values (read-uint 3) 1))
 
 (defun read-rgba ()
-  (values (read-uint 4)
-          1))
+  (values (read-uint 4) 1))
 
 (defun read-index (octet)
   (let ((pixel (aref *pixel-table* (ldb (byte 6 0) octet))))
@@ -61,27 +59,31 @@
 
 (defun read-diff (octet previous channel-count)
   (u:mvlet ((r g b a (unpack-pixel previous channel-count))
-            (db (ldb (byte 8 0) (- (ldb (byte 2 0) octet) 2)))
-            (dg (ldb (byte 8 0) (- (ldb (byte 2 2) octet) 2)))
-            (dr (ldb (byte 8 0) (- (ldb (byte 2 4) octet) 2))))
-    (values (pack-pixel (- r dr) (- g dg) (- b db) a channel-count)
+            (dr (- (ldb (byte 2 4) octet) 2))
+            (dg (- (ldb (byte 2 2) octet) 2))
+            (db (- (ldb (byte 2 0) octet) 2)))
+    (values (pack-pixel (ldb (byte 8 0) (+ r dr))
+                        (ldb (byte 8 0) (+ g dg))
+                        (ldb (byte 8 0) (+ b db))
+                        a
+                        channel-count)
             1)))
 
 (defun read-luma (octet previous channel-count)
   (u:mvlet* ((next-octet (read-uint 1))
              (r g b a (unpack-pixel previous channel-count))
-             (dg (ldb (byte 8 0) (- (ldb (byte 6 0) octet) 32)))
-             (db-dg (ldb (byte 8 0) (- (ldb (byte 4 0) next-octet) 8)))
-             (dr-dg (ldb (byte 8 0) (- (ldb (byte 4 4) next-octet) 8))))
-    (values (pack-pixel (- r (+ dr-dg dg))
-                        (- g dg)
-                        (- b (+ db-dg dg))
+             (dg (- (ldb (byte 6 0) octet) 32))
+             (dr-dg (- (ldb (byte 4 4) next-octet) 8))
+             (db-dg (- (ldb (byte 4 0) next-octet) 8)))
+    (values (pack-pixel (ldb (byte 8 0) (+ r dg dr-dg))
+                        (ldb (byte 8 0) (+ g dg))
+                        (ldb (byte 8 0) (+ b dg db-dg))
                         a
                         channel-count)
             1)))
 
 (defun read-run (octet previous)
-  (let ((run (ldb (byte 8 0) (1+ (ldb (byte 6 0) octet)))))
+  (let ((run (1+ (ldb (byte 6 0) octet))))
     (values previous run)))
 
 (defun read-chunk (previous channel-count)
@@ -99,24 +101,25 @@
          (#.+run-tag+ (read-run octet previous)))))))
 
 (defun read-data (image channel-count)
-  (loop :with previous := #xff
+  (loop :with previous := (case channel-count
+                            (3 #x00)
+                            (4 #xff))
         :with index := 0
         :with width := (width image)
         :with height := (height image)
         :with data := (data image)
-        :until (>= index (* width height channel-count))
-        :do (u:mvlet* ((pixel run (read-chunk previous channel-count))
+        :while (< index (* width height channel-count))
+        :do (u:mvlet* ((pixel run op (read-chunk previous channel-count))
                        (r g b a (unpack-pixel pixel channel-count)))
               (add-seen-pixel r g b a channel-count)
               (dotimes (i run)
-                (let ((offset (+ index i)))
-                  (setf (aref data (+ offset 0)) r
-                        (aref data (+ offset 1)) g
-                        (aref data (+ offset 2)) b)
-                  (when (= channel-count 4)
-                    (setf (aref data (+ offset 3)) a))))
-              (setf previous pixel)
-              (incf index (* run channel-count)))))
+                (setf (aref data (+ index 0)) r
+                      (aref data (+ index 1)) g
+                      (aref data (+ index 2)) b)
+                (when (= channel-count 4)
+                  (setf (aref data (+ index 3)) a))
+                (incf index channel-count))
+              (setf previous pixel))))
 
 (defun decode-stream (stream)
   (with-buffer-read (:stream stream)
@@ -124,10 +127,6 @@
       (u:mvlet* ((width height channel-count color-space (read-header))
                  (image (make-image width height channel-count color-space)))
         (read-data image channel-count)
-        (format t "EOF marker: ~s, Stopped at: ~d, Should have stopped at: ~d~%"
-                (read-octets 8)
-                (file-position stream)
-                (file-length stream))
         image))))
 
 (defun decode-file (path)
