@@ -70,7 +70,7 @@
 (defun read-luma (octet previous channel-count)
   (u:mvlet* ((next-octet (read-uint 1))
              (r g b a (unpack-pixel previous channel-count))
-             (dg (ldb (byte 8 0) (- (ldb (byte 6 8) octet) 32)))
+             (dg (ldb (byte 8 0) (- (ldb (byte 6 0) octet) 32)))
              (db-dg (ldb (byte 8 0) (- (ldb (byte 4 0) next-octet) 8)))
              (dr-dg (ldb (byte 8 0) (- (ldb (byte 4 4) next-octet) 8))))
     (values (pack-pixel (- r (+ dr-dg dg))
@@ -104,12 +104,12 @@
         :with width := (width image)
         :with height := (height image)
         :with data := (data image)
-        :while (< index (* width height channel-count))
+        :until (>= index (* width height channel-count))
         :do (u:mvlet* ((pixel run (read-chunk previous channel-count))
                        (r g b a (unpack-pixel pixel channel-count)))
               (add-seen-pixel r g b a channel-count)
               (dotimes (i run)
-                (let ((offset (max 0 (1- (+ index i)))))
+                (let ((offset (+ index i)))
                   (setf (aref data (+ offset 0)) r
                         (aref data (+ offset 1)) g
                         (aref data (+ offset 2)) b)
@@ -124,11 +124,10 @@
       (u:mvlet* ((width height channel-count color-space (read-header))
                  (image (make-image width height channel-count color-space)))
         (read-data image channel-count)
-        ;; This should be the EOF marker #(0 0 0 0 0 0 0 1) so it must not be reading far enough
         (format t "EOF marker: ~s, Stopped at: ~d, Should have stopped at: ~d~%"
                 (read-octets 8)
                 (file-position stream)
-                (- (file-length stream) 8))
+                (file-length stream))
         image))))
 
 (defun decode-file (path)
