@@ -113,8 +113,9 @@
                 (let ((offset (+ index i)))
                   (setf (aref data (+ offset 0)) r
                         (aref data (+ offset 1)) g
-                        (aref data (+ offset 2)) b
-                        (aref data (+ offset 3)) a)))
+                        (aref data (+ offset 2)) b)
+                  (when (= channel-count 4)
+                    (setf (aref data (+ offset 3)) a))))
               (setf previous pixel)
               (incf index (* run channel-count)))))
 
@@ -124,8 +125,27 @@
       (u:mvlet* ((width height channel-count color-space (read-header))
                  (image (make-image width height channel-count color-space)))
         (read-data image channel-count)
+        ;; This should be the EOF marker #(0 0 0 0 0 0 0 1) so it must not be reading far enough
+        (format t "EOF marker: ~s~%" (read-octets 8))
         image))))
 
 (defun decode-file (path)
   (u:with-binary-input (stream path)
     (decode-stream stream)))
+
+(defun convert-to-png (image file-path)
+  (let* ((width (width image))
+         (height (height image))
+         (channel-count (case (channels image)
+                          (:rgb 3)
+                          (:rgba 4)))
+         (image-data (u:make-ub8-array (* width height channel-count)))
+         (png (make-instance 'zpng:png
+                             :color-type (ecase channel-count
+                                           (3 :truecolor)
+                                           (4 :truecolor-alpha))
+                             :width width
+                             :height height
+                             :image-data image-data)))
+    (replace image-data (data image))
+    (zpng:write-png png file-path)))

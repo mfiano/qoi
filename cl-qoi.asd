@@ -7,7 +7,8 @@
   :encoding :utf-8
   :depends-on (#:babel
                #:fast-io
-               #:mfiano.misc.utils)
+               #:mfiano.misc.utils
+               #:zpng)
   :pathname "src"
   :serial t
   :components
