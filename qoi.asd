@@ -1,13 +1,13 @@
-(asdf:defsystem #:cl-qoi
-  :description "An encoder/decoder for the Quite OK Image format."
+(asdf:defsystem #:qoi
+  :description "A decoder for the Quite OK Image format."
   :author "Michael Fiano <mail@mfiano.net>"
   :license "MIT"
-  :homepage "https://github.com/mfiano/cl-qoi"
+  :homepage "https://git.mfiano.net/mfiano/qoi"
   :version "0.1.0"
   :encoding :utf-8
   :depends-on (#:babel
                #:fast-io
-               #:mfiano.misc.utils
+               #:mfiano-utils
                #:zpng)
   :pathname "src"
   :serial t

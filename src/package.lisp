@@ -1,8 +1,8 @@
 (in-package #:cl-user)
 
-(defpackage #:cl-qoi
+(defpackage #:qoi
   (:local-nicknames
    (#:io #:fast-io)
-   (#:u #:mfiano.misc.utils))
+   (#:u #:mfiano-utils))
   (:use #:cl)
   (:export))
